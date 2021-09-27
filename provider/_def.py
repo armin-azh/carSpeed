@@ -216,3 +216,11 @@ def py_d_net_detection(arguments: Namespace):
         cv2.imshow("Disparity", color_mapped_im)
     source.release()
     cv2.destroyAllWindows()
+
+
+def yolo_mono(arguments: Namespace):
+    pass
+
+
+def yolo_pyd_net(arguments: Namespace):
+    pass
