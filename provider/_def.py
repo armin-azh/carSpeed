@@ -152,7 +152,7 @@ def mono_demo_detection(arguments: Namespace):
             normalizer = mpl.colors.Normalize(vmin=disp_resized_np.min(), vmax=vmax)
             mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
             color_mapped_im = (mapper.to_rgba(disp_resized_np)[:, :, :3] * 255).astype(np.uint8)
-            color_mapped_im = cv2.cvtColor(color_mapped_im,cv2.COLOR_RGB2BGR)
+            color_mapped_im = cv2.cvtColor(color_mapped_im, cv2.COLOR_RGB2BGR)
 
         if cv2.waitKey(1) == ord("q"):
             break
