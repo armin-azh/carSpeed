@@ -19,6 +19,9 @@ from yolo.preprocess import prep_image
 from mono.networks import ResnetEncoder, DepthDecoder
 from mono.layers import disp_to_depth
 
+# py-d net model
+from pydnet import PydNet
+
 # settings
 from settings import (yolo_weight,
                       yolo_conf,
@@ -152,6 +155,58 @@ def mono_demo_detection(arguments: Namespace):
             normalizer = mpl.colors.Normalize(vmin=disp_resized_np.min(), vmax=vmax)
             mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
             color_mapped_im = (mapper.to_rgba(disp_resized_np)[:, :, :3] * 255).astype(np.uint8)
+            color_mapped_im = cv2.cvtColor(color_mapped_im, cv2.COLOR_RGB2BGR)
+
+        if cv2.waitKey(1) == ord("q"):
+            break
+
+        cv2.imshow("Main", frame)
+        cv2.imshow("Disparity", color_mapped_im)
+    source.release()
+    cv2.destroyAllWindows()
+
+
+def py_d_net_detection(arguments: Namespace):
+    device = torch.device("cuda") if has_cuda else torch.device("cpu")
+
+    source = cv2.VideoCapture(arguments.in_file)
+
+    # load model
+    print("Running demo on PydNet-depth")
+    print("[PydNet] loading the network")
+    cont = PydNet()
+    model = cont.model
+    model.to(device)
+    transformer = cont.transformer.small_transform
+    print("[YOLO] Network had been loaded")
+
+    while source.isOpened():
+        ret, frame = source.read()
+
+        if not ret:
+            break
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        frame = cv2.resize(frame, (640, 192), interpolation=cv2.INTER_LANCZOS4)
+
+        trans_frame = transformer(frame).to(device)
+
+        with torch.no_grad():
+            pred = model(trans_frame)
+            pred = torch.nn.functional.interpolate(
+                pred.unsqueeze(1),
+                size=frame.shape[:2],
+                mode="bicubic",
+                align_corners=False,
+            ).squeeze()
+
+            output = pred.cpu().numpy()
+
+            vmax = np.percentile(output, 95)
+            normalizer = mpl.colors.Normalize(vmin=output.min(), vmax=vmax)
+            mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
+            color_mapped_im = (mapper.to_rgba(output)[:, :, :3] * 255).astype(np.uint8)
             color_mapped_im = cv2.cvtColor(color_mapped_im, cv2.COLOR_RGB2BGR)
 
         if cv2.waitKey(1) == ord("q"):

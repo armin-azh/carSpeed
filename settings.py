@@ -20,3 +20,6 @@ yolo_filter_list = ["car", "motorbike", "truck"]
 
 # mono depth
 mono_weight_dir = project_dir.joinpath("data/monodepth/mono_640x192")
+
+# pyd-net depth
+py_d_net = project_dir.joinpath("data/pydnet/pydnet")

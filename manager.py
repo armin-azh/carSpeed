@@ -3,7 +3,7 @@ import argparse
 from argparse import Namespace
 
 # providers
-from provider import yolo_demo_detection, mono_demo_detection
+from provider import yolo_demo_detection, mono_demo_detection, py_d_net_detection
 
 
 def main(arguments: Namespace):
@@ -12,6 +12,9 @@ def main(arguments: Namespace):
 
     elif arguments.mono_demo:
         mono_demo_detection(arguments=arguments)
+
+    elif arguments.pyd_net_demo:
+        py_d_net_detection(arguments=arguments)
 
 
 if __name__ == '__main__':
@@ -26,6 +29,7 @@ if __name__ == '__main__':
     # mono depth options
     parser.add_argument("--mono_demo", help="run mono depth demo", action="store_true")
     # PyD-net options
+    parser.add_argument("--pyd_net_demo", help="run pyd_net demo", action="store_true")
     args = parser.parse_args()
 
     main(arguments=args)
