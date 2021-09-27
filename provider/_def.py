@@ -8,7 +8,7 @@ from torch.autograd import Variable
 
 # model
 from yolo.darknet import Darknet
-from yolo.util import load_classes, write_results, write_to_image,filter_list
+from yolo.util import load_classes, write_results, write_to_image, filter_list
 from yolo.preprocess import prep_image
 
 # settings
@@ -74,7 +74,7 @@ def yolo_demo_detection(arguments: Namespace):
             output[i, [1, 3]] = torch.clamp(output[i, [1, 3]], 0.0, im_dim[i, 0])
             output[i, [2, 4]] = torch.clamp(output[i, [2, 4]], 0.0, im_dim[i, 1])
 
-        output = filter_list(output,classes)
+        output = filter_list(output, classes)
 
         list(map(lambda x: write_to_image(x, orig_im, classes, color), output))
 
@@ -85,3 +85,7 @@ def yolo_demo_detection(arguments: Namespace):
         cv2.imshow("Det", orig_im)
     source.release()
     cv2.destroyAllWindows()
+
+
+def mono_demo_detection(arguments: Namespace):
+    pass

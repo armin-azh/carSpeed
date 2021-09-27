@@ -3,12 +3,15 @@ import argparse
 from argparse import Namespace
 
 # providers
-from provider import yolo_demo_detection
+from provider import yolo_demo_detection, mono_demo_detection
 
 
 def main(arguments: Namespace):
     if arguments.yolo_demo:
         yolo_demo_detection(arguments=arguments)
+
+    elif arguments.mono_demo:
+        mono_demo_detection(arguments=arguments)
 
 
 if __name__ == '__main__':
@@ -21,6 +24,7 @@ if __name__ == '__main__':
     parser.add_argument("--yolo_conf", help="Object Confidence to filter predictions", default=0.5, type=float)
     parser.add_argument("--yolo_nms_thresh", help="NMS threshold", default=0.4, type=float)
     # mono depth options
+    parser.add_argument("--mono_demo", help="run mono depth demo", action="store_true")
     # PyD-net options
     args = parser.parse_args()
 
