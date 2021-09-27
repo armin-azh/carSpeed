@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 from yolo.bbox import bbox_iou
-import random
+from settings import yolo_filter_list
 
 
 def count_parameters(model):
@@ -295,29 +295,20 @@ def write_results_half(prediction, confidence, num_classes, nms=True, nms_conf=0
         except:
             continue
 
-        # Get the various classes detected in the image
         img_classes = unique(image_pred_[:, -1].long()).half()
 
-        # WE will do NMS classwise
         for cls in img_classes:
-            # get the detections with one particular class
             cls_mask = image_pred_ * (image_pred_[:, -1] == cls).half().unsqueeze(1)
             class_mask_ind = torch.nonzero(cls_mask[:, -2]).squeeze()
 
             image_pred_class = image_pred_[class_mask_ind]
 
-            # sort the detections such that the entry with the maximum objectness
-            # confidence is at the top
             conf_sort_index = torch.sort(image_pred_class[:, 4], descending=True)[1]
             image_pred_class = image_pred_class[conf_sort_index]
             idx = image_pred_class.size(0)
 
-            # if nms has to be done
             if nms:
-                # For each detection
                 for i in range(idx):
-                    # Get the IOUs of all boxes that come after the one we are looking at
-                    # in the loop
                     try:
                         ious = bbox_iou(image_pred_class[i].unsqueeze(0), image_pred_class[i + 1:])
                     except ValueError:
@@ -334,11 +325,6 @@ def write_results_half(prediction, confidence, num_classes, nms=True, nms_conf=0
                     non_zero_ind = torch.nonzero(image_pred_class[:, 4]).squeeze()
                     image_pred_class = image_pred_class[non_zero_ind]
 
-            # Concatenate the batch_id of the image to the detection
-            # this helps us identify which image does the detection correspond to
-            # We use a linear straucture to hold ALL the detections from the batch
-            # the batch_dim is flattened
-            # batch is identified by extra batch column
             batch_ind = image_pred_class.new(image_pred_class.size(0), 1).fill_(ind)
             seq = batch_ind, image_pred_class
 
@@ -360,3 +346,12 @@ def write_to_image(x, img, classes, color):
     cv2.rectangle(img, c1, c2, color, 1)
     cv2.putText(img, label, (c1[0], c1[1] + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, [225, 255, 255], 1)
     return img
+
+
+def filter_list(pred, classes):
+    _output = []
+    for out in pred:
+        if classes[int(out[-1])] in yolo_filter_list:
+            _output.append(out)
+
+    return _output

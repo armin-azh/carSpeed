@@ -14,3 +14,5 @@ yolo_conf = project_dir.joinpath("data/yolo/cfg/yolov3.cfg")
 yolo_classes = project_dir.joinpath("data/yolo/coco.names")
 
 yolo_color = project_dir.joinpath("data/yolo/pallete")
+
+yolo_filter_list = ["car", "motorbike", "truck"]
