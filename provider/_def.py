@@ -2,6 +2,7 @@ from argparse import Namespace
 import cv2
 import pickle as pkl
 import numpy as np
+import random
 import torch
 from torch.autograd import Variable
 
@@ -36,6 +37,7 @@ def yolo_demo_detection(arguments: Namespace):
     n_classes = len(classes)
 
     colors = pkl.load(open(str(yolo_color), "rb"))
+    color = random.choice(colors)
 
     bbox_attrs = 5 + n_classes
 
@@ -72,7 +74,7 @@ def yolo_demo_detection(arguments: Namespace):
             output[i, [1, 3]] = torch.clamp(output[i, [1, 3]], 0.0, im_dim[i, 0])
             output[i, [2, 4]] = torch.clamp(output[i, [2, 4]], 0.0, im_dim[i, 1])
 
-        list(map(lambda x: write_to_image(x, orig_im, classes, colors), output))
+        list(map(lambda x: write_to_image(x, orig_im, classes, color), output))
 
         if cv2.waitKey(1) == ord("q"):
             break
