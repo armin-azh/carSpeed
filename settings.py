@@ -23,3 +23,9 @@ mono_weight_dir = project_dir.joinpath("data/monodepth/mono_640x192")
 
 # pyd-net depth
 py_d_net = project_dir.joinpath("data/pydnet/pydnet")
+
+# tracker setting
+tracker_iou_threshold = 0.2
+tracker_max_age = 1
+tracker_min_hits = 10
+tracker_interval = 2

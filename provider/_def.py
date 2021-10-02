@@ -28,7 +28,15 @@ from settings import (yolo_weight,
                       yolo_classes,
                       yolo_color,
                       has_cuda,
-                      mono_weight_dir)
+                      mono_weight_dir,
+                      tracker_iou_threshold,
+                      tracker_min_hits,
+                      tracker_max_age,
+                      tracker_interval)
+
+
+# tracker
+from tracklet import SortTrackerV1
 
 
 def yolo_demo_detection(arguments: Namespace):
@@ -219,7 +227,112 @@ def py_d_net_detection(arguments: Namespace):
 
 
 def yolo_mono(arguments: Namespace):
-    pass
+    # use gpu for boosting if you have
+    device = torch.device("cuda") if has_cuda else torch.device("cpu")
+
+    # mono-depth paths
+    encoder_path = mono_weight_dir.joinpath("encoder.pth")
+    depth_decoder_path = mono_weight_dir.joinpath("depth.pth")
+
+    # load network
+    # load yolo
+    print("Running demo on YOLO")
+    print("[YOLO] loading the network")
+    model = Darknet(str(yolo_conf))
+    model.load_weights(str(yolo_weight))
+    model.eval()
+    if has_cuda:
+        model.cuda()
+    print("[YOLO] Network had been loaded")
+    model.net_info["height"] = arguments.yolo_dim
+    inp_dim = int(model.net_info["height"])
+    # end load yolo
+    # start load mono
+    print("[MONO] loading the network")
+    encoder = ResnetEncoder(18, False)
+    loaded_dict_enc = torch.load(encoder_path, map_location=device)
+    feed_height = loaded_dict_enc['height']
+    feed_width = loaded_dict_enc['width']
+    filtered_dict_enc = {k: v for k, v in loaded_dict_enc.items() if k in encoder.state_dict()}
+    encoder.load_state_dict(filtered_dict_enc)
+    encoder.to(device)
+    encoder.eval()
+
+    depth_decoder = DepthDecoder(
+        num_ch_enc=encoder.num_ch_enc, scales=range(4))
+
+    loaded_dict = torch.load(depth_decoder_path, map_location=device)
+    depth_decoder.load_state_dict(loaded_dict)
+
+    depth_decoder.to(device)
+    depth_decoder.eval()
+    print("[MONO] Network had been loaded")
+    # end load mono
+
+    # start load classes
+    classes = load_classes(namesfile=str(yolo_classes))
+    n_classes = len(classes)
+    # end load classes
+
+    # start load video source
+    source = cv2.VideoCapture(arguments.in_file)
+    # end load video source
+
+    # tracker
+    tracker = SortTrackerV1(iou_threshold=tracker_iou_threshold,
+                            max_age=tracker_max_age,
+                            min_hit=tracker_min_hits,
+                            detect_interval=tracker_interval)
+
+    # start detection
+    while source.isOpened():
+        ret, frame = source.read()
+
+        if not ret:
+            break
+
+        frame = cv2.resize(frame, (640, 480))
+
+        img, orig_im, dim = prep_image(frame, inp_dim)
+        im_dim = torch.FloatTensor(dim).repeat(1, 2)
+
+        if has_cuda:
+            im_dim = im_dim.cuda()
+            img = img.cuda()
+
+        # start yolo prediction
+        with torch.no_grad():
+            output = model(Variable(img), has_cuda)
+
+        output = write_results(output, arguments.yolo_conf, n_classes, nms=True, nms_conf=arguments.yolo_nms_thresh)
+        im_dim = im_dim.repeat(output.size(0), 1)
+
+        scaling_factor = torch.min(inp_dim / im_dim, 1)[0].view(-1, 1)
+
+        output[:, [1, 3]] -= (inp_dim - scaling_factor * im_dim[:, 0].view(-1, 1)) / 2
+        output[:, [2, 4]] -= (inp_dim - scaling_factor * im_dim[:, 1].view(-1, 1)) / 2
+
+        output[:, 1:5] /= scaling_factor
+
+        for i in range(output.shape[0]):
+            output[i, [1, 3]] = torch.clamp(output[i, [1, 3]], 0.0, im_dim[i, 0])
+            output[i, [2, 4]] = torch.clamp(output[i, [2, 4]], 0.0, im_dim[i, 1])
+
+        output = filter_list(output, classes)
+        output = np.array(output)
+        # end yolo prediction
+
+        print(output.shape)
+
+        # list(map(lambda x: write_to_image(x, orig_im, classes, color), output))
+
+        if cv2.waitKey(1) == ord("q"):
+            break
+
+        cv2.imshow("Main", frame)
+        cv2.imshow("Det", orig_im)
+    source.release()
+    cv2.destroyAllWindows()
 
 
 def yolo_pyd_net(arguments: Namespace):

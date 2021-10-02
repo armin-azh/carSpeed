@@ -352,6 +352,7 @@ def filter_list(pred, classes):
     _output = []
     for out in pred:
         if classes[int(out[-1])] in yolo_filter_list:
-            _output.append(out)
+            out = out.cpu().numpy()
+            _output.append([*out[1:5], out[-1]])
 
     return _output
