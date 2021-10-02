@@ -17,7 +17,7 @@ class Tracker:
 
 
 class SortTracker(Tracker):
-    def __init__(self,  detect_interval: int, iou_threshold: float, max_age: int, min_hit: int,
+    def __init__(self, detect_interval: int, iou_threshold: float, max_age: int, min_hit: int,
                  *args, **kwargs):
         super(SortTracker, self).__init__(*args, **kwargs)
         self._detect_interval = detect_interval
@@ -114,8 +114,7 @@ class SortTracker(Tracker):
             return np.concatenate(ret)
         return np.empty((0, 5))
 
-    def detect(self, road_objets: np.ndarray, frame: np.ndarray, points: np.ndarray, frame_size: Tuple[int, int], *args,
-               **kwargs):
+    def detect(self, road_objets: np.ndarray, frame: np.ndarray, frame_size: Tuple[int, int], *args, **kwargs):
 
         final_cars = road_objets if len(road_objets) > 0 else []
 

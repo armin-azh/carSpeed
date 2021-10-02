@@ -339,10 +339,12 @@ def write_results_half(prediction, confidence, num_classes, nms=True, nms_conf=0
 
 
 def write_to_image(x, img, classes, color):
-    c1 = tuple(x[1:3].int())
-    c2 = tuple(x[3:5].int())
-    cls = int(x[-1])
-    label = "{0}".format(classes[cls])
+    x = x.astype(np.int)
+    c1 = tuple(x[:2])
+    c2 = tuple(x[2:4])
+    cls = x[4]
+    print(cls)
+    label = f"Car: {cls}"
     cv2.rectangle(img, c1, c2, color, 1)
     cv2.putText(img, label, (c1[0], c1[1] + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, [225, 255, 255], 1)
     return img
