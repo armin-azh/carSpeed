@@ -334,7 +334,7 @@ def yolo_mono(arguments: Namespace):
 
         trk_output = tracker.detect(road_objets=output, frame=orig_im, frame_size=orig_im.shape[:2])
 
-        # represent
+        # box represent
         list(map(lambda x: write_to_image(x, orig_im, classes, color), trk_output))
 
         if cv2.waitKey(1) == ord("q"):
