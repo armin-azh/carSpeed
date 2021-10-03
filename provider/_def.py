@@ -37,6 +37,7 @@ from settings import (yolo_weight,
 # tracker
 from tracklet import SortTrackerV1
 from tracklet import Counter
+from tracklet import TrackerContainer
 
 
 def yolo_demo_detection(arguments: Namespace):
@@ -288,6 +289,8 @@ def yolo_mono(arguments: Namespace):
                             detect_interval=tracker_interval)
     interval_cnt = Counter()
 
+    trk_store = dict()
+
     # start detection
     while source.isOpened():
         ret, frame = source.read()
@@ -296,6 +299,9 @@ def yolo_mono(arguments: Namespace):
             break
 
         frame = cv2.resize(frame, (640, 480))
+        origin_frame = frame.copy()
+        origin_frame_shape = origin_frame.shape
+        original_height, original_width = origin_frame_shape[0], origin_frame_shape[1]
 
         img, orig_im, dim = prep_image(frame, inp_dim)
         im_dim = torch.FloatTensor(dim).repeat(1, 2)
@@ -303,6 +309,28 @@ def yolo_mono(arguments: Namespace):
         if has_cuda:
             im_dim = im_dim.cuda()
             img = img.cuda()
+
+        # start mono conversion
+        with torch.no_grad():
+            input_image = transforms.ToTensor()(origin_frame).unsqueeze(0)
+            input_image = input_image.to(device)
+            features = encoder(input_image)
+            mono_output = depth_decoder(features)
+
+            disp = mono_output[("disp", 0)]
+            disp_resized = torch.nn.functional.interpolate(
+                disp, (original_height, original_width), mode="bilinear", align_corners=False)
+
+            scaled_disp, depth = disp_to_depth(disp, 0.1, 100)
+
+            mono_depth = depth.cpu().numpy()
+
+            disp_resized_np = disp_resized.squeeze().cpu().numpy()
+            vmax = np.percentile(disp_resized_np, 95)
+            normalizer = mpl.colors.Normalize(vmin=disp_resized_np.min(), vmax=vmax)
+            mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
+            color_mapped_im = (mapper.to_rgba(disp_resized_np)[:, :, :3] * 255).astype(np.uint8)
+            color_mapped_im = cv2.cvtColor(color_mapped_im, cv2.COLOR_RGB2BGR)
 
         if interval_cnt() % tracker_interval == 0:
             interval_cnt.reset()
@@ -334,13 +362,39 @@ def yolo_mono(arguments: Namespace):
 
         trk_output = tracker.detect(road_objets=output, frame=orig_im, frame_size=orig_im.shape[:2])
 
-        # box represent
-        list(map(lambda x: write_to_image(x, orig_im, classes, color), trk_output))
+        mono_depth = np.squeeze(np.squeeze(mono_depth, axis=0), axis=0)
+
+        for box in trk_output:
+            box = box.astype(np.int)
+            x1, y1, x2, y2 = box[:4]
+            car_depth = mono_depth[y1:y2, x1:x2]
+            car_depth_mean = np.mean(car_depth)
+            obj_idx = box[4]
+            obj = trk_store.get(str(obj_idx))
+            obj_speed = None
+            if obj is None:
+                trk_store[str(obj_idx)] = TrackerContainer()
+                trk_store[str(obj_idx)].get_speed(mean_depth=car_depth_mean)
+            else:
+                obj_speed = trk_store[str(obj_idx)].get_speed(mean_depth=car_depth_mean)
+                obj_speed = round(71 + obj_speed, 2)
+
+            label = f"ID: {obj_idx}"
+            speed = f"Speed: {obj_speed}"
+
+            print(label, speed, sep=" ")
+            cv2.rectangle(orig_im, (x1, y1), (x2, y2), color, 1)
+            cv2.putText(orig_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            cv2.putText(orig_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+
+            cv2.rectangle(color_mapped_im, (x1, y1), (x2, y2), color, 1)
+            cv2.putText(color_mapped_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            cv2.putText(color_mapped_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
 
         if cv2.waitKey(1) == ord("q"):
             break
 
-        cv2.imshow("Main", frame)
+        cv2.imshow("Mono", color_mapped_im)
         cv2.imshow("Det", orig_im)
     source.release()
     cv2.destroyAllWindows()

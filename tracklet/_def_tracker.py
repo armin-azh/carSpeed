@@ -124,106 +124,26 @@ class SortTracker(Tracker):
 
 
 class TrackerContainer:
-    KNOWN = "known"
-    UNKNOWN = "unrecognized"
+    km_h = 0.277777778
 
-    def __init__(self, tracker_id: int):
-        self._trk_id = tracker_id
-        self._send = False
+    def __init__(self):
         self._modified = self._now()
-        self._last_seen_image = None
-        self._observation = {
-            self.UNKNOWN: Counter()
-        }
-
-    @property
-    def trk_id(self):
-        return self._trk_id
-
-    @property
-    def total_counter(self) -> int:
-        """
-        get total number of tracker id observed
-        :return:
-        """
-        obs_cnt = [obs() for obs in self._observation.values()]
-        return sum(obs_cnt) if sum(obs_cnt) != 0 else 1
-
-    @property
-    def unknown_counter(self) -> int:
-        return self._observation[self.UNKNOWN]()
-
-    def summary(self):
-        """
-        get summary of all identity name in observations
-        :return:
-        """
-        total_cnt = self.total_counter
-        if total_cnt == 0:
-            ans = {key: 0 for key in self._observation.keys()}
-            return ans
-        ans = {key: item() / total_cnt for key, item in self._observation}
-        return ans
-
-    @property
-    def most_valuable_id(self) -> Union[Tuple[str, int], Tuple[None, None]]:
-        """
-        find most cnt value in observations
-        :return:
-        """
-        _ids = []
-        _values = []
-        for key, value in self._observation.items():
-            if key == self.UNKNOWN:
-                continue
-            _ids.append(key)
-            _values.append(value())
-
-        if not _ids and not _values:
-            return None, None
-        _top_idx = np.argmax(_values)
-        return _ids[_top_idx], _values[_top_idx]
-
-    @property
-    def image(self) -> np.ndarray:
-        return self._last_seen_image
-
-    @image.setter
-    def image(self, mat: np.ndarray) -> None:
-        self._last_seen_image = mat
+        self._last_depth_mean = None
 
     def _now(self) -> datetime:
         return datetime.now()
 
-    def _delta(self, _e: datetime, _s: datetime) -> float:
-        """
-        get total seconds
-        :param _e:
-        :param _s:
-        :return:
-        """
-        return (_e - _s).total_seconds()
+    def get_speed(self, mean_depth: Union[np.ndarray, float]) -> Union[float, None]:
+        if self._last_depth_mean is None:
+            self._last_depth_mean = mean_depth
+            self._modified = self._now()
+            return None
+        else:
+            mean_diff = mean_depth - self._last_depth_mean
+            new_time = self._now()
+            time_diff = (new_time - self._modified).total_seconds()
 
-    @property
-    def delta(self) -> float:
-        _now = datetime.now()
-        return self._delta(_now, self._modified)
+            self._modified = new_time
+            self._last_depth_mean = mean_depth
 
-    def __call__(self, mat: Union[None, np.ndarray], identity: str, *args, **kwargs):
-        try:
-            self._observation[identity].next()
-
-        except KeyError:
-            self._observation[identity] = Counter()
-            self._observation[identity].next()
-
-        if mat is not None:
-            self._last_seen_image = mat
-        self._modified = self._now()
-
-    @property
-    def send(self) -> bool:
-        return self._send
-
-    def sent(self):
-        self._send = True
+            return (mean_diff / (time_diff + np.finfo(np.float32).eps)) / self.km_h
