@@ -3,7 +3,7 @@ import argparse
 from argparse import Namespace
 
 # providers
-from provider import yolo_demo_detection, mono_demo_detection, py_d_net_detection,yolo_mono,yolo_pyd_net
+from provider import yolo_demo_detection, mono_demo_detection, py_d_net_detection, yolo_mono, yolo_pyd_net
 
 
 def main(arguments: Namespace):
@@ -30,6 +30,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # default options
     parser.add_argument("--in_file", help="Input video file", default="", type=str)
+    parser.add_argument("--ref_speed", help="camera speed", type=int, default=0)
 
     # yolo options
     parser.add_argument("--yolo_demo", help="run yolo demo detection", action="store_true", )

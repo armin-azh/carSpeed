@@ -377,7 +377,7 @@ def yolo_mono(arguments: Namespace):
                 trk_store[str(obj_idx)].get_speed(mean_depth=car_depth_mean)
             else:
                 obj_speed = trk_store[str(obj_idx)].get_speed(mean_depth=car_depth_mean)
-                obj_speed = round(71 + obj_speed, 2)
+                obj_speed = round(arguments.ref_speed + obj_speed, 2)
 
             label = f"ID: {obj_idx}"
             speed = f"Speed: {obj_speed}"

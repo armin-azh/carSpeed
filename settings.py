@@ -28,4 +28,4 @@ py_d_net = project_dir.joinpath("data/pydnet/pydnet")
 tracker_iou_threshold = 0.2
 tracker_max_age = 2
 tracker_min_hits = 12
-tracker_interval = 4
+tracker_interval = 5
