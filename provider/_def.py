@@ -401,4 +401,158 @@ def yolo_mono(arguments: Namespace):
 
 
 def yolo_pyd_net(arguments: Namespace):
-    pass
+    # use gpu for boosting if you have
+    device = torch.device("cuda") if has_cuda else torch.device("cpu")
+
+    # load network
+    # load yolo
+    print("Running demo on YOLO")
+    print("[YOLO] loading the network")
+    model = Darknet(str(yolo_conf))
+    model.load_weights(str(yolo_weight))
+    model.eval()
+    if has_cuda:
+        model.cuda()
+    print("[YOLO] Network had been loaded")
+    model.net_info["height"] = arguments.yolo_dim
+    inp_dim = int(model.net_info["height"])
+    # end load yolo
+    # start load mono
+    print("[PydNet] loading the network")
+    cont = PydNet()
+    py_model = cont.model
+    py_model.to(device)
+    transformer = cont.transformer.small_transform
+    print("[PydNet] Network had been loaded")
+    # end load mono
+
+    # start load classes
+    classes = load_classes(namesfile=str(yolo_classes))
+    n_classes = len(classes)
+    # end load classes
+
+    # start load video source
+    source = cv2.VideoCapture(arguments.in_file)
+    # end load video source
+
+    colors = pkl.load(open(str(yolo_color), "rb"))
+    color = random.choice(colors)
+
+    # tracker
+    tracker = SortTrackerV1(iou_threshold=tracker_iou_threshold,
+                            max_age=tracker_max_age,
+                            min_hit=tracker_min_hits,
+                            detect_interval=tracker_interval)
+    interval_cnt = Counter()
+
+    trk_store = dict()
+
+    # start detection
+    while source.isOpened():
+        ret, frame = source.read()
+
+        if not ret:
+            break
+
+        frame = cv2.resize(frame, (640, 192))
+        origin_frame = frame.copy()
+        origin_frame_shape = origin_frame.shape
+        original_height, original_width = origin_frame_shape[0], origin_frame_shape[1]
+
+        img, orig_im, dim = prep_image(frame, inp_dim)
+        im_dim = torch.FloatTensor(dim).repeat(1, 2)
+
+        if has_cuda:
+            im_dim = im_dim.cuda()
+            img = img.cuda()
+
+        # start pyd-net detection
+        trans_frame = transformer(frame).to(device)
+        with torch.no_grad():
+            py_pred = py_model(trans_frame)
+            py_pred = torch.nn.functional.interpolate(
+                py_pred.unsqueeze(1),
+                size=frame.shape[:2],
+                mode="bicubic",
+                align_corners=False,
+            ).squeeze()
+
+            py_depth = py_pred.cpu().numpy()
+
+            vmax = np.percentile(py_depth, 95)
+            normalizer = mpl.colors.Normalize(vmin=py_depth.min(), vmax=vmax)
+            mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
+            color_mapped_im = (mapper.to_rgba(py_depth)[:, :, :3] * 255).astype(np.uint8)
+            color_mapped_im = cv2.cvtColor(color_mapped_im, cv2.COLOR_RGB2BGR)
+
+        # end pyd-net detection
+
+        if interval_cnt() % tracker_interval == 0:
+            interval_cnt.reset()
+            # start yolo prediction
+            with torch.no_grad():
+                output = model(Variable(img), has_cuda)
+
+            output = write_results(output, arguments.yolo_conf, n_classes, nms=True, nms_conf=arguments.yolo_nms_thresh)
+            im_dim = im_dim.repeat(output.size(0), 1)
+
+            scaling_factor = torch.min(inp_dim / im_dim, 1)[0].view(-1, 1)
+
+            output[:, [1, 3]] -= (inp_dim - scaling_factor * im_dim[:, 0].view(-1, 1)) / 2
+            output[:, [2, 4]] -= (inp_dim - scaling_factor * im_dim[:, 1].view(-1, 1)) / 2
+
+            output[:, 1:5] /= scaling_factor
+
+            for i in range(output.shape[0]):
+                output[i, [1, 3]] = torch.clamp(output[i, [1, 3]], 0.0, im_dim[i, 0])
+                output[i, [2, 4]] = torch.clamp(output[i, [2, 4]], 0.0, im_dim[i, 1])
+
+            output = filter_list(output, classes)
+            output = np.array(output)
+            # end yolo prediction
+        else:
+            output = []
+
+        interval_cnt.next()
+
+        trk_output = tracker.detect(road_objets=output, frame=orig_im, frame_size=orig_im.shape[:2])
+
+        py_depth  = 1/ py_depth
+
+        # start representing
+        for box in trk_output:
+            box = box.astype(np.int)
+            x1, y1, x2, y2 = box[:4]
+            car_depth = py_depth[y1:y2, x1:x2]
+            car_depth_mean = np.mean(car_depth)
+            obj_idx = box[4]
+            obj = trk_store.get(str(obj_idx))
+            obj_speed = None
+            if obj is None:
+                trk_store[str(obj_idx)] = TrackerContainer()
+                trk_store[str(obj_idx)].get_speed(mean_depth=car_depth_mean)
+            else:
+                obj_speed = trk_store[str(obj_idx)].get_speed(mean_depth=car_depth_mean)
+                obj_speed = round(arguments.ref_speed + obj_speed, 2)
+
+            label = f"ID: {obj_idx}"
+            speed = f"Speed: {obj_speed}"
+
+            print(label, speed, sep=" ")
+            cv2.rectangle(orig_im, (x1, y1), (x2, y2), color, 1)
+            cv2.putText(orig_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            cv2.putText(orig_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+
+            cv2.rectangle(color_mapped_im, (x1, y1), (x2, y2), color, 1)
+            cv2.putText(color_mapped_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            cv2.putText(color_mapped_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+
+        #  end representing
+
+        if cv2.waitKey(1) == ord("q"):
+            break
+
+        cv2.imshow("Mono", color_mapped_im)
+        cv2.imshow("Det", orig_im)
+    source.release()
+    cv2.destroyAllWindows()
