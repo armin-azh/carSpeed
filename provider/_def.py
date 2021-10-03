@@ -227,7 +227,12 @@ def py_d_net_detection(arguments: Namespace):
     cv2.destroyAllWindows()
 
 
-def yolo_mono(arguments: Namespace):
+def yolo_mono(arguments: Namespace) -> None:
+    """
+    start yolo + MonoDepth runtime
+    :param arguments: runtime argument
+    :return:
+    """
     # use gpu for boosting if you have
     device = torch.device("cuda") if has_cuda else torch.device("cpu")
 
@@ -237,7 +242,7 @@ def yolo_mono(arguments: Namespace):
 
     # load network
     # load yolo
-    print("Running demo on YOLO")
+    print("Running demo on YOLO + MonoDepth2")
     print("[YOLO] loading the network")
     model = Darknet(str(yolo_conf))
     model.load_weights(str(yolo_weight))
@@ -400,13 +405,18 @@ def yolo_mono(arguments: Namespace):
     cv2.destroyAllWindows()
 
 
-def yolo_pyd_net(arguments: Namespace):
+def yolo_pyd_net(arguments: Namespace) -> None:
+    """
+    start yolo + PyDNet runtime
+    :param arguments:
+    :return: None
+    """
     # use gpu for boosting if you have
     device = torch.device("cuda") if has_cuda else torch.device("cpu")
 
     # load network
     # load yolo
-    print("Running demo on YOLO")
+    print("Running demo on YOLO + PyDNet")
     print("[YOLO] loading the network")
     model = Darknet(str(yolo_conf))
     model.load_weights(str(yolo_weight))
@@ -454,22 +464,23 @@ def yolo_pyd_net(arguments: Namespace):
         if not ret:
             break
 
+        # start some transformation
         frame = cv2.resize(frame, (640, 192))
-        origin_frame = frame.copy()
-        origin_frame_shape = origin_frame.shape
-        original_height, original_width = origin_frame_shape[0], origin_frame_shape[1]
-
         img, orig_im, dim = prep_image(frame, inp_dim)
         im_dim = torch.FloatTensor(dim).repeat(1, 2)
+        # end some transformation
 
+        # start moving to gpu
         if has_cuda:
             im_dim = im_dim.cuda()
             img = img.cuda()
+        # end moving to gpu
 
         # start pyd-net detection
         trans_frame = transformer(frame).to(device)
         with torch.no_grad():
             py_pred = py_model(trans_frame)
+            # # start py-d net postprocessing
             py_pred = torch.nn.functional.interpolate(
                 py_pred.unsqueeze(1),
                 size=frame.shape[:2],
@@ -484,15 +495,17 @@ def yolo_pyd_net(arguments: Namespace):
             mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
             color_mapped_im = (mapper.to_rgba(py_depth)[:, :, :3] * 255).astype(np.uint8)
             color_mapped_im = cv2.cvtColor(color_mapped_im, cv2.COLOR_RGB2BGR)
-
+            # end yolo postprocessing
         # end pyd-net detection
 
+        # check the interval
         if interval_cnt() % tracker_interval == 0:
             interval_cnt.reset()
             # start yolo prediction
             with torch.no_grad():
                 output = model(Variable(img), has_cuda)
 
+            # start yolo postprocessing
             output = write_results(output, arguments.yolo_conf, n_classes, nms=True, nms_conf=arguments.yolo_nms_thresh)
             im_dim = im_dim.repeat(output.size(0), 1)
 
@@ -509,6 +522,7 @@ def yolo_pyd_net(arguments: Namespace):
 
             output = filter_list(output, classes)
             output = np.array(output)
+            # end yolo postprocessing
             # end yolo prediction
         else:
             output = []
@@ -517,7 +531,7 @@ def yolo_pyd_net(arguments: Namespace):
 
         trk_output = tracker.detect(road_objets=output, frame=orig_im, frame_size=orig_im.shape[:2])
 
-        py_depth  = 1/ py_depth
+        py_depth = 1 / py_depth
 
         # start representing
         for box in trk_output:
@@ -528,31 +542,41 @@ def yolo_pyd_net(arguments: Namespace):
             obj_idx = box[4]
             obj = trk_store.get(str(obj_idx))
             obj_speed = None
+
+            # start track the object
             if obj is None:
                 trk_store[str(obj_idx)] = TrackerContainer()
                 trk_store[str(obj_idx)].get_speed(mean_depth=car_depth_mean)
             else:
                 obj_speed = trk_store[str(obj_idx)].get_speed(mean_depth=car_depth_mean)
                 obj_speed = round(arguments.ref_speed + obj_speed, 2)
+            # end track the object
 
             label = f"ID: {obj_idx}"
             speed = f"Speed: {obj_speed}"
 
-            print(label, speed, sep=" ")
+            # start annotate on real image
             cv2.rectangle(orig_im, (x1, y1), (x2, y2), color, 1)
             cv2.putText(orig_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
             cv2.putText(orig_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            # start annotate on real image
 
+            # start annotate on depth image
             cv2.rectangle(color_mapped_im, (x1, y1), (x2, y2), color, 1)
             cv2.putText(color_mapped_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
             cv2.putText(color_mapped_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
-
+            # end annotate on depth image
         #  end representing
 
+        # start some wait
         if cv2.waitKey(1) == ord("q"):
             break
+        # end some wait
 
-        cv2.imshow("Mono", color_mapped_im)
+        # start opening window
+        cv2.imshow("PyDNet", color_mapped_im)
         cv2.imshow("Det", orig_im)
+        # end opening window
+
     source.release()
     cv2.destroyAllWindows()
