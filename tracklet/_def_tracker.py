@@ -4,7 +4,6 @@ from sklearn.utils.linear_assignment_ import linear_assignment
 from datetime import datetime
 
 from ._utls import calc_iou
-from ._utls import Counter
 from ._kalman import KalmanBoxTracker
 from settings import look_back
 

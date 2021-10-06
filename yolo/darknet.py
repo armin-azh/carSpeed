@@ -6,8 +6,6 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
-from yolo.util import count_parameters as count
 from yolo.util import convert2cpu as cpu
 from yolo.util import predict_transform
 

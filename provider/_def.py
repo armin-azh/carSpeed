@@ -304,8 +304,9 @@ def yolo_mono(arguments: Namespace) -> None:
     trk_store = dict()
 
     o_height, o_width = video_size
+    cp_frame = source.get(cv2.CAP_PROP_FPS)
 
-    print(f"[Video] width: {o_width}, height: {o_height}")
+    print(f"[Video] width: {o_width}, height: {o_height}, FPS: {round(cp_frame,2)}")
 
     # start detection
     while source.isOpened():
@@ -619,14 +620,14 @@ def yolo_pyd_net(arguments: Namespace) -> None:
 
             # start annotate on real image
             cv2.rectangle(origin_frame, (x1, y1), (x2, y2), color, 1)
-            cv2.putText(origin_frame, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
-            cv2.putText(origin_frame, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            # cv2.putText(origin_frame, label, (x1, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [225, 255, 255], 1)
+            cv2.putText(origin_frame, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.4, [255, 255, 255], 1)
             # start annotate on real image
 
             # start annotate on depth image
             cv2.rectangle(color_mapped_im, (x1, y1), (x2, y2), color, 1)
-            cv2.putText(color_mapped_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
-            cv2.putText(color_mapped_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            # cv2.putText(color_mapped_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [225, 255, 255], 1)
+            cv2.putText(color_mapped_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.4, [255, 255, 255], 1)
             # end annotate on depth image
         #  end representing
 

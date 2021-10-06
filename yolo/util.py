@@ -2,11 +2,9 @@ from __future__ import division
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 from yolo.bbox import bbox_iou
 from settings import yolo_filter_list
 
