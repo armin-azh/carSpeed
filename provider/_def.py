@@ -288,7 +288,7 @@ def yolo_mono(arguments: Namespace) -> None:
     # end load classes
 
     # start load video source
-    source = cv2.VideoCapture(arguments.in_file)
+    source = cv2.VideoCapture(arguments.in_file if not arguments.cam else 0)
     # end load video source
 
     colors = pkl.load(open(str(yolo_color), "rb"))
@@ -484,7 +484,7 @@ def yolo_pyd_net(arguments: Namespace) -> None:
     # end load classes
 
     # start load video source
-    source = cv2.VideoCapture(arguments.in_file)
+    source = cv2.VideoCapture(arguments.in_file if not arguments.cam else 0)
     # end load video source
 
     colors = pkl.load(open(str(yolo_color), "rb"))

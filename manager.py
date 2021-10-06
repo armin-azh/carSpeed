@@ -31,6 +31,7 @@ if __name__ == '__main__':
     # default options
     parser.add_argument("--in_file", help="Input video file", default="", type=str)
     parser.add_argument("--ref_speed", help="camera speed", type=int, default=0)
+    parser.add_argument("--cam", help="enable camera", action="store_true")
 
     # yolo options
     parser.add_argument("--yolo_demo", help="run yolo demo detection", action="store_true")
