@@ -6,6 +6,7 @@ from datetime import datetime
 from ._utls import calc_iou
 from ._utls import Counter
 from ._kalman import KalmanBoxTracker
+from settings import look_back
 
 
 class Tracker:
@@ -129,6 +130,7 @@ class TrackerContainer:
     def __init__(self):
         self._modified = self._now()
         self._last_depth_mean = None
+        self._speed = []
 
     def _now(self) -> datetime:
         return datetime.now()
@@ -146,4 +148,11 @@ class TrackerContainer:
             self._modified = new_time
             self._last_depth_mean = mean_depth
 
-            return (mean_diff / (time_diff + np.finfo(np.float32).eps)) / self.km_h
+            n_speed = (mean_diff / (time_diff + np.finfo(np.float32).eps)) / self.km_h
+
+            self._speed.append(n_speed)
+
+            if len(self._speed)<look_back:
+                return np.array(self._speed).mean()
+
+            return np.array(self._speed[-look_back:]).mean()

@@ -30,6 +30,9 @@ tracker_max_age = 2
 tracker_min_hits = 12
 tracker_interval = 6
 
+# time step
+look_back = 10
+
 # video
 video_size = (480, 854)  # 480p
 # video_size = (720, 1280)  # 720p
