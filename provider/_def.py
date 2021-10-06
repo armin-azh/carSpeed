@@ -1,3 +1,8 @@
+import warnings
+
+warnings.simplefilter("ignore", FutureWarning)
+warnings.simplefilter("ignore", UserWarning)
+
 from argparse import Namespace
 import cv2
 import pickle as pkl
@@ -32,7 +37,8 @@ from settings import (yolo_weight,
                       tracker_iou_threshold,
                       tracker_min_hits,
                       tracker_max_age,
-                      tracker_interval)
+                      tracker_interval,
+                      video_size)
 
 # tracker
 from tracklet import SortTrackerV1
@@ -296,6 +302,10 @@ def yolo_mono(arguments: Namespace) -> None:
 
     trk_store = dict()
 
+    o_height, o_width = video_size
+
+    print(f"[Video] width: {o_width}, height: {o_height}")
+
     # start detection
     while source.isOpened():
         ret, frame = source.read()
@@ -303,28 +313,36 @@ def yolo_mono(arguments: Namespace) -> None:
         if not ret:
             break
 
-        frame = cv2.resize(frame, (640, 480))
-        origin_frame = frame.copy()
-        origin_frame_shape = origin_frame.shape
-        original_height, original_width = origin_frame_shape[0], origin_frame_shape[1]
+        origin_frame = cv2.resize(frame, (o_width, o_height))
 
+        frame = cv2.resize(frame, (640, 480))
+        frame_shape = frame.shape
+        frame_height, frame_width = frame_shape[0], frame_shape[1]
+
+        # start some transfer
         img, orig_im, dim = prep_image(frame, inp_dim)
         im_dim = torch.FloatTensor(dim).repeat(1, 2)
+
+        # start calc scale
+        o_f_h_scale = o_height / orig_im.shape[0]
+        o_f_w_scale = o_width / orig_im.shape[1]
+        # end calc scale
 
         if has_cuda:
             im_dim = im_dim.cuda()
             img = img.cuda()
+        # end some transfer
 
         # start mono conversion
         with torch.no_grad():
-            input_image = transforms.ToTensor()(origin_frame).unsqueeze(0)
+            input_image = transforms.ToTensor()(frame).unsqueeze(0)
             input_image = input_image.to(device)
             features = encoder(input_image)
             mono_output = depth_decoder(features)
 
             disp = mono_output[("disp", 0)]
-            disp_resized = torch.nn.functional.interpolate(
-                disp, (original_height, original_width), mode="bilinear", align_corners=False)
+            disp_resized = torch.nn.functional.interpolate(disp, (frame_height, frame_width), mode="bilinear",
+                                                           align_corners=False)
 
             scaled_disp, depth = disp_to_depth(disp, 0.1, 100)
 
@@ -336,6 +354,7 @@ def yolo_mono(arguments: Namespace) -> None:
             mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
             color_mapped_im = (mapper.to_rgba(disp_resized_np)[:, :, :3] * 255).astype(np.uint8)
             color_mapped_im = cv2.cvtColor(color_mapped_im, cv2.COLOR_RGB2BGR)
+            color_mapped_im = cv2.resize(color_mapped_im, (o_width, o_height))
 
         if interval_cnt() % tracker_interval == 0:
             interval_cnt.reset()
@@ -372,8 +391,12 @@ def yolo_mono(arguments: Namespace) -> None:
         for box in trk_output:
             box = box.astype(np.int)
             x1, y1, x2, y2 = box[:4]
+
+            # start calc depth
             car_depth = mono_depth[y1:y2, x1:x2]
             car_depth_mean = np.mean(car_depth)
+            # end calc depth
+
             obj_idx = box[4]
             obj = trk_store.get(str(obj_idx))
             obj_speed = None
@@ -387,20 +410,31 @@ def yolo_mono(arguments: Namespace) -> None:
             label = f"ID: {obj_idx}"
             speed = f"Speed: {obj_speed}"
 
-            print(label, speed, sep=" ")
-            cv2.rectangle(orig_im, (x1, y1), (x2, y2), color, 1)
-            cv2.putText(orig_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
-            cv2.putText(orig_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            # start transformation
+            x1 = int(x1 * o_f_w_scale)
+            y1 = int(y1 * o_f_h_scale)
+            x2 = int(x2 * o_f_w_scale)
+            y2 = int(y2 * o_f_h_scale)
+            # end transformation
+
+            # start annotating information
+            cv2.rectangle(origin_frame, (x1, y1), (x2, y2), color, 1)
+            cv2.putText(origin_frame, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            cv2.putText(origin_frame, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
 
             cv2.rectangle(color_mapped_im, (x1, y1), (x2, y2), color, 1)
             cv2.putText(color_mapped_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
             cv2.putText(color_mapped_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            # end annotating information
 
         if cv2.waitKey(1) == ord("q"):
             break
 
-        cv2.imshow("Mono", color_mapped_im)
-        cv2.imshow("Det", orig_im)
+        # start window
+        cat_frame = np.concatenate([color_mapped_im, origin_frame], axis=1)
+        cv2.imshow("Yolo + Mono", cat_frame)
+        # end window
+
     source.release()
     cv2.destroyAllWindows()
 
@@ -457,6 +491,10 @@ def yolo_pyd_net(arguments: Namespace) -> None:
 
     trk_store = dict()
 
+    o_height, o_width = video_size
+
+    print(f"[Video] width: {o_width}, height: {o_height}")
+
     # start detection
     while source.isOpened():
         ret, frame = source.read()
@@ -464,11 +502,18 @@ def yolo_pyd_net(arguments: Namespace) -> None:
         if not ret:
             break
 
+        origin_frame = cv2.resize(frame, (o_width, o_height))
+
         # start some transformation
         frame = cv2.resize(frame, (640, 192))
         img, orig_im, dim = prep_image(frame, inp_dim)
         im_dim = torch.FloatTensor(dim).repeat(1, 2)
         # end some transformation
+
+        # start calc scale
+        o_f_h_scale = o_height / orig_im.shape[0]
+        o_f_w_scale = o_width / orig_im.shape[1]
+        # end calc scale
 
         # start moving to gpu
         if has_cuda:
@@ -495,6 +540,7 @@ def yolo_pyd_net(arguments: Namespace) -> None:
             mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
             color_mapped_im = (mapper.to_rgba(py_depth)[:, :, :3] * 255).astype(np.uint8)
             color_mapped_im = cv2.cvtColor(color_mapped_im, cv2.COLOR_RGB2BGR)
+            color_mapped_im = cv2.resize(color_mapped_im, (o_width, o_height))
             # end yolo postprocessing
         # end pyd-net detection
 
@@ -555,10 +601,17 @@ def yolo_pyd_net(arguments: Namespace) -> None:
             label = f"ID: {obj_idx}"
             speed = f"Speed: {obj_speed}"
 
+            # start transformation
+            x1 = int(x1 * o_f_w_scale)
+            y1 = int(y1 * o_f_h_scale)
+            x2 = int(x2 * o_f_w_scale)
+            y2 = int(y2 * o_f_h_scale)
+            # end transformation
+
             # start annotate on real image
-            cv2.rectangle(orig_im, (x1, y1), (x2, y2), color, 1)
-            cv2.putText(orig_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
-            cv2.putText(orig_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            cv2.rectangle(origin_frame, (x1, y1), (x2, y2), color, 1)
+            cv2.putText(origin_frame, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            cv2.putText(origin_frame, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
             # start annotate on real image
 
             # start annotate on depth image
@@ -573,9 +626,9 @@ def yolo_pyd_net(arguments: Namespace) -> None:
             break
         # end some wait
 
+        cat_frame = np.concatenate([color_mapped_im, origin_frame], axis=1)
         # start opening window
-        cv2.imshow("PyDNet", color_mapped_im)
-        cv2.imshow("Det", orig_im)
+        cv2.imshow("YOLO + PyDNet", cat_frame)
         # end opening window
 
     source.release()

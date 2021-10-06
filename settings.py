@@ -28,4 +28,10 @@ py_d_net = project_dir.joinpath("data/pydnet/pydnet")
 tracker_iou_threshold = 0.2
 tracker_max_age = 2
 tracker_min_hits = 12
-tracker_interval = 5
+tracker_interval = 6
+
+# video
+video_size = (480, 854)  # 480p
+# video_size = (720, 1280)  # 720p
+# video_size = (360, 640)  # 360p
+

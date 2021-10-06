@@ -33,7 +33,7 @@ if __name__ == '__main__':
     parser.add_argument("--ref_speed", help="camera speed", type=int, default=0)
 
     # yolo options
-    parser.add_argument("--yolo_demo", help="run yolo demo detection", action="store_true", )
+    parser.add_argument("--yolo_demo", help="run yolo demo detection", action="store_true")
     parser.add_argument("--yolo_dim", help="yolo_dimension", default=416, type=int)
     parser.add_argument("--yolo_conf", help="Object Confidence to filter predictions", default=0.5, type=float)
     parser.add_argument("--yolo_nms_thresh", help="NMS threshold", default=0.4, type=float)
