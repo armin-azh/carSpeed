@@ -6,6 +6,7 @@ warnings.simplefilter("ignore", UserWarning)
 from argparse import Namespace
 import cv2
 import pickle as pkl
+import time
 import numpy as np
 import random
 import torch
@@ -309,6 +310,7 @@ def yolo_mono(arguments: Namespace) -> None:
     # start detection
     while source.isOpened():
         ret, frame = source.read()
+        start_time = time.time()
 
         if not ret:
             break
@@ -430,6 +432,11 @@ def yolo_mono(arguments: Namespace) -> None:
         if cv2.waitKey(1) == ord("q"):
             break
 
+        # start show frame rate
+        fps = 1.0 / (time.time() - start_time)
+        cv2.putText(origin_frame, f"FPS: {round(fps, 2)}", (12, 15), cv2.FONT_HERSHEY_PLAIN, 1, [0, 0, 255], 2)
+        # end show frame rate
+
         # start window
         cat_frame = np.concatenate([color_mapped_im, origin_frame], axis=1)
         cv2.imshow("Yolo + Mono", cat_frame)
@@ -492,12 +499,14 @@ def yolo_pyd_net(arguments: Namespace) -> None:
     trk_store = dict()
 
     o_height, o_width = video_size
+    cp_frame = source.get(cv2.CAP_PROP_FPS)
 
-    print(f"[Video] width: {o_width}, height: {o_height}")
+    print(f"[Video] width: {o_width}, height: {o_height}, FPS: {round(cp_frame,2)}")
 
     # start detection
     while source.isOpened():
         ret, frame = source.read()
+        start_time = time.time()
 
         if not ret:
             break
@@ -625,6 +634,11 @@ def yolo_pyd_net(arguments: Namespace) -> None:
         if cv2.waitKey(1) == ord("q"):
             break
         # end some wait
+
+        # start show frame rate
+        fps = 1.0 / (time.time() - start_time)
+        cv2.putText(origin_frame, f"FPS: {round(fps,2)}", (12, 15), cv2.FONT_HERSHEY_PLAIN, 1, [0, 0, 255], 2)
+        # end show frame rate
 
         cat_frame = np.concatenate([color_mapped_im, origin_frame], axis=1)
         # start opening window
