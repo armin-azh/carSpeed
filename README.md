@@ -36,7 +36,7 @@
 | GPU       | Nvidia 1650 4G Geforce|
 | CPU   | Core i5 - 4900f|
 | RAM   | 16 G|
-| OS   | Ubuntu 18.4 LTS|
+| OS   | Ubuntu 18.04 LTS|
 
 
 

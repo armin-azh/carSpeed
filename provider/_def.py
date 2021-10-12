@@ -422,12 +422,14 @@ def yolo_mono(arguments: Namespace) -> None:
 
             # start annotating information
             cv2.rectangle(origin_frame, (x1, y1), (x2, y2), color, 1)
-            cv2.putText(origin_frame, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
-            cv2.putText(origin_frame, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            # cv2.putText(origin_frame, label, (x1, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [225, 255, 255], 1)
+            cv2.putText(origin_frame, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.4, [255, 255, 255], 1)
+            # start annotate on real image
 
+            # start annotate on depth image
             cv2.rectangle(color_mapped_im, (x1, y1), (x2, y2), color, 1)
-            cv2.putText(color_mapped_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
-            cv2.putText(color_mapped_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_COMPLEX_SMALL, 0.5, [225, 255, 255], 1)
+            # cv2.putText(color_mapped_im, label, (x1, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, [225, 255, 255], 1)
+            cv2.putText(color_mapped_im, speed, (x1, y1 + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.4, [255, 255, 255], 1)
             # end annotating information
 
         if cv2.waitKey(1) == ord("q"):
